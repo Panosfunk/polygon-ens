@@ -1,41 +1,77 @@
 const main = async () => {
-  const [owner, superCoder] = await hre.ethers.getSigners();
+  const axios = require('axios');
   const domainContractFactory = await hre.ethers.getContractFactory('Domains');
-  const domainContract = await domainContractFactory.deploy("ninja");
+  const domainContract = await domainContractFactory.deploy("funk");
   await domainContract.deployed();
 
-  console.log("Contract owner:", owner.address);
-
-  // Let's be extra generous with our payment (we're paying more than required)
-  let txn = await domainContract.register("a16z",  {value: hre.ethers.utils.parseEther('1234')});
-  await txn.wait();
-
-  // How much money is in here?
-  const balance = await hre.ethers.provider.getBalance(domainContract.address);
-  console.log("Contract balance:", hre.ethers.utils.formatEther(balance));
-
-  // Quick! Grab the funds from the contract! (as superCoder)
-  try {
-    txn = await domainContract.connect(superCoder).withdraw();
-    await txn.wait();
-  } catch(error){
-    console.log("Could not rob contract");
-  }
-
-  // Let's look in their wallet so we can compare later
-  let ownerBalance = await hre.ethers.provider.getBalance(owner.address);
-  console.log("Balance of owner before withdrawal:", hre.ethers.utils.formatEther(ownerBalance));
-
-  // Oops, looks like the owner is saving their money!
-  txn = await domainContract.connect(owner).withdraw();
-  await txn.wait();
+  // await domainContract.updateContractData("banana");
   
-  // Fetch balance of contract & owner
-  const contractBalance = await hre.ethers.provider.getBalance(domainContract.address);
-  ownerBalance = await hre.ethers.provider.getBalance(owner.address);
+  let namesarr = await domainContract.getAllNames();
+  console.log("namesarr.length", namesarr.length, " aa",  domainsarr.length)
+  namesarr.forEach(async function (element, index) {
+    const mintRecord = await domainContract.records(element);
+    console.log(index, ")", element, " mint ", mintRecord );
+  });
 
-  console.log("Contract balance after withdrawal:", hre.ethers.utils.formatEther(contractBalance));
-  console.log("Balance of owner after withdrawal:", hre.ethers.utils.formatEther(ownerBalance));
+  let randomWordBase64 = await domainContract.generateJsonData("banana");
+  randomWordBase64 = Buffer.from(randomWordBase64, 'base64');
+  let jsonToSend = JSON.parse(randomWordBase64);
+
+  var config = {
+    method: 'post',
+    url: 'https://api.pinata.cloud/pinning/pinJSONToIPFS',
+    headers: { 
+        'Content-Type': 'application/json', 
+        'pinata_api_key': `${process.env.REACT_APP_PINATA_API_KEY}`,
+        'pinata_secret_api_key': `${process.env.REACT_APP_PINATA_API_SECRET}`,
+    },
+    data : 
+    {
+        "name": jsonToSend.name,
+        "description": jsonToSend.description,
+        "data": jsonToSend.image,
+        "length": jsonToSend.length
+    }
+  };
+
+  const res = await axios(config);
+  
+  const tokenURI = `ipfs://${res.data.IpfsHash}`;
+  console.log(tokenURI);
+
+  // CHANGE THIS DOMAIN TO SOMETHING ELSE! I don't want to see OpenSea full of bananas lol
+  let txn = await domainContract.register(tokenURI, "banana", {value: hre.ethers.utils.parseEther('0.1')});
+  await txn.wait();
+  console.log("Minted domain banana.funk");
+  
+  txn = await domainContract.setRecord("banana", "Am I a banana or a funk??");
+  await txn.wait();
+  console.log("Set record for banana.funk");
+  
+  namesarr = await domainContract.getAllNames();
+  console.log("namesarr.length", namesarr.length, " aa",  domainsarr.length)
+  namesarr.forEach(async function (element, index) {
+    const mintRecord = await domainContract.records(element);
+    console.log("what1", index, ")", element, " mint ", mintRecord );
+  });
+
+  const address = await domainContract.getAddress("banana");
+  const myBalanceB = await hre.ethers.provider.getBalance("0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266");
+  console.log("Owner of domain banana:", address, " and his balance before", myBalanceB);
+
+  let balance = await hre.ethers.provider.getBalance(domainContract.address);
+  console.log("Contract balance:", hre.ethers.utils.formatEther(balance));
+  const withdrawTx = await domainContract.withdraw();
+
+  const myBalanceA = await hre.ethers.provider.getBalance("0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266");
+  console.log("Owner of domain banana:", address, " and his balance before", myBalanceA);
+
+  const gainz = (myBalanceA - myBalanceB) / 10 ** 18
+  console.log(gainz);
+  console.log("Fees were ", 0.1 - gainz);
+
+  balance = await hre.ethers.provider.getBalance(domainContract.address);
+  console.log("Contract balance:", hre.ethers.utils.formatEther(balance));
 }
 
 const runMain = async () => {

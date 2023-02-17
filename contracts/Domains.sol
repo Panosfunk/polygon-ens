@@ -90,41 +90,66 @@ contract Domains is ERC721URIStorage{
         }
     }
 
-    function register(string calldata name) public payable{
+    function updateContractData(string calldata name) private {
         if (domains[name] != address(0)) revert AlreadyRegistered();
         if (!valid(name)) revert InvalidName(name);
+        
+        uint256 newRecordId = _tokenIds.current();
+
+        console.log("Registering %s.%s on the contract with tokenID %d", name, tld, newRecordId);
+        // string memory jsonToReturn = generateJsonData(name);
+        // require(jsonToReturn == "", "Generation ");
+        names[newRecordId] = name;
+        domains[name] = msg.sender;
+        console.log("newrecid", newRecordId);
+
+        console.log("splunging", names[0], domains[name], records[name]);
+        // return jsonToReturn;
+    }
+
+    function generateJsonData(string calldata name) public view returns(string memory) {
+        
+        string memory _name = string(abi.encodePacked(name, ".", tld));
+        string memory finalSvg = string(abi.encodePacked(svgPartOne, _name, svgPartTwo));
+        
+        uint256 length = StringUtils.strlen(name);
+        string memory strLen = Strings.toString(length);
+        string memory finalLen = string(abi.encodePacked(strLen));
+
+
+        string memory json = Base64.encode(
+            bytes(
+                string(
+                    abi.encodePacked(
+                        '{'
+                            '"name": "', _name,'", '
+                            '"description": "A domain on the Funk name service", '
+                            '"image": "data:image/svg+xml;base64,', Base64.encode(bytes(finalSvg)), '", '
+                            '"length": "', finalLen, '"'
+                        '}'
+                    )
+                )
+            )
+        );
+        return json;
+    }
+
+    function register(string memory finalTokenUri, string calldata name) public payable {
+
         uint _price = price(name);
         require(msg.value >= _price, "Not enough Matic paid");
 
-        string memory _name = string(abi.encodePacked(name, ".", tld));
-        string memory finalSvg = string(abi.encodePacked(svgPartOne, _name, svgPartTwo));
         uint256 newRecordId = _tokenIds.current();
-        uint256 length = StringUtils.strlen(name);
-        string memory strLen = Strings.toString(length);
 
-        
-        console.log("Registering %s.%s on the contract with tokenID %d", name, tld, newRecordId);
-
-        string memory json = Base64.encode(
-            abi.encodePacked(
-                '{'
-                    '"name": "', _name,'", '
-                    '"description": "A domain on the Funk name service", '
-                    '"image": "data:image/svg+xml;base64,', Base64.encode(bytes(finalSvg)), '", '
-                    '"length": "', strLen, '"'
-                '}'
-            )
-        );
-    
-        string memory finalTokenUri = string(abi.encodePacked("data:application/json;base64,", json));
+        // finalTokenUri = string(abi.encodePacked("data:application/json;base64,", json));
         console.log("\n--------------------------------------------------------");
         console.log("Final tokenURI\n", finalTokenUri);
         console.log("--------------------------------------------------------\n");
 
         _safeMint(msg.sender, newRecordId);
         _setTokenURI(newRecordId, finalTokenUri);
-        domains[name] = msg.sender;
-        names[newRecordId] = name;
+
+        updateContractData(name);
 
         _tokenIds.increment();
         
